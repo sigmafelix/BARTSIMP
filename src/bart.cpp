@@ -156,11 +156,10 @@ void bart::pr() //print to screen
   else cout << "data not set\n";
 }
 
-size_t* bart::getLeafNodes() {
-  size_t bnds[m];
+std::vector<size_t> bart::getLeafNodes() {
+  std::vector<size_t> bnds(m);
   for (size_t i=0; i<m; i++) {
     bnds[i] = t[i].nbots();
   }
   return bnds;
 }
-

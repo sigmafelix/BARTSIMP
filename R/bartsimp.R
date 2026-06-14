@@ -51,8 +51,6 @@
 #'   \item{proc.time}{Execution time}
 #' }
 #'
-#' }
-#'
 #' @references
 #' Jiang, A. Z., & Wakefield, J. (2025).
 #' BARTSIMP: Flexible spatial covariate modeling and prediction using

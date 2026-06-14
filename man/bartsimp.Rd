@@ -115,7 +115,6 @@ An object containing:
 }
 
 }
-}
 \description{
 Fits a Bayesian Additive Regression Trees (BART) model with
 spatial variance components.

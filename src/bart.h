@@ -79,7 +79,7 @@ public:
   double f(size_t i) {return allfit[i];}
   Rcpp::DataFrame getCoordsDf(Rcpp::NumericVector s1, Rcpp::NumericVector s2);
   arma::mat calcPrecMat(double sigma);
-  size_t* getLeafNodes();
+  std::vector<size_t> getLeafNodes();
 protected:
   size_t m;  //number of trees
   std::vector<tree> t; //the trees
