@@ -41,13 +41,13 @@ void grm(tree& tr, xinfo& xi, std::ostream& os)
 //fit tree at matrix of x, matrix is stacked columns x[i,j] is *(x+p*i+j)
 void fit(tree& t, xinfo& xi, size_t p, size_t n, double *x,  double* fv)
 {
-  tree::tree_p bn;
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
   for(size_t i=0;i<n;i++) {
-    bn = t.bn(x+i*p,xi);
+    tree::tree_p bn = t.bn(x+i*p,xi);
     fv[i] = bn->gettheta();
-    //cout << "fit: fitv is " << fv[i];
   }
-  cout << endl;
 }
 
 //--------------------------------------------------
@@ -88,5 +88,4 @@ void getgoodvars(tree::tree_p n, xinfo& xi,  std::vector<size_t>& goodvars)
     if(U>=L) goodvars.push_back(v);
   }
 }
-
 

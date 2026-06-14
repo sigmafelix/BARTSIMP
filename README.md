@@ -84,10 +84,10 @@ fit <- bartsimp(
   s2 = s_train$s2,
   s1.test = s_test$s1,
   s2.test = s_test$s2,
-  ntree = 10,   # number of trees in the BART ensemble
-  ndpost = 10,  # number of posterior samples to retain
-  nwarmup = 10, # number of warmup / burn-in iterations
-  seed = 1
+  ntree = 100,   # number of trees in the BART ensemble
+  ndpost = 25,  # number of posterior samples to retain
+  nwarmup = 50, # number of warmup / burn-in iterations
+  seed = 2026
 )
 
 ############################################

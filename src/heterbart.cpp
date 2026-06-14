@@ -49,6 +49,9 @@ void heterbart::initializetrees() {
   for (size_t j=0;j<m;j++) {
     t[j].initialize(m);
     fit(t[j],xi,p,n,x,ftemp);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
     for(size_t k=0;k<n;k++) {
       allfit[k] = allfit[k] + ftemp[k];
     }
@@ -66,6 +69,9 @@ double heterbart::draw_sigmaupdate(double *sigma, rn& gen, double nu, double lam
   using std::chrono::milliseconds;
   for(size_t j=0;j<m;j++) {
     fit(t[j],xi,p,n,x,ftemp);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
     for(size_t k=0;k<n;k++) {
       allfit[k] = allfit[k]-ftemp[k];
       r[k] = y[k]-allfit[k];
@@ -97,18 +103,20 @@ double heterbart::draw_sigmaupdate(double *sigma, rn& gen, double nu, double lam
     //MyFile2 << endl;
 
     fit(t[j],xi,p,n,x,ftemp);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
     for(size_t k=0;k<n;k++) {
       allfit[k] += ftemp[k];
       //cout << "(" << ftemp[k] << "," << allfit[k] << ") ";
     }
   }
   double r_sigma[n];
-  Rcpp::NumericVector r_sigma_(n);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
   for(size_t k=0;k<n;k++) {
     r_sigma[k] = y[k] - allfit[k];
-  }
-  for(size_t k=0; k<n; k++) {
-    r_sigma_[k] = r_sigma[k];
   }
   //cout << "sd " << Rcpp::sd(r_sigma_);
   sigma[0] = heterbd_drawsigma(di, r_sigma, sigma[0],kappa, sigma_m, pi, nu, lambda, gen, isexact, mlik);
@@ -126,6 +134,9 @@ void heterbart::draw(double *sigma, rn& gen, double nu, double lambda)
 {
   for(size_t j=0;j<m;j++) {
     fit(t[j],xi,p,n,x,ftemp);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
     for(size_t k=0;k<n;k++) {
       allfit[k] = allfit[k]-ftemp[k];
       r[k] = y[k]-allfit[k];
@@ -137,6 +148,9 @@ void heterbart::draw(double *sigma, rn& gen, double nu, double lambda)
     //cout << "node ok" << endl;
     //heterdrmu_new_test(t[j],xi,di,pi,sigma[0],gen,r);
     fit(t[j],xi,p,n,x,ftemp);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
     for(size_t k=0;k<n;k++) {
       allfit[k] += ftemp[k];
     }
@@ -197,6 +211,9 @@ void heterbart::draw_test(double *sigma, rn& gen, double &kappa, double &sigma_m
 {
   for(size_t j=0;j<m;j++) {
     fit(t[j],xi,p,n,x,ftemp);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
     for(size_t k=0;k<n;k++) {
       allfit[k] = allfit[k]-ftemp[k];
       r[k] = y[k]-allfit[k];
@@ -205,6 +222,9 @@ void heterbart::draw_test(double *sigma, rn& gen, double &kappa, double &sigma_m
     heterbd_test(t[j],xi,r,di,pi,sigma,nv,pv,aug,gen,sigma_m,kappa,isexact);
     heterdrmu(t[j],xi,di,pi,sigma,gen);
     fit(t[j],xi,p,n,x,ftemp);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
     for(size_t k=0;k<n;k++) {
       allfit[k] += ftemp[k];
     }

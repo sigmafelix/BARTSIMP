@@ -104,21 +104,26 @@ void bart::setdata(size_t p, size_t n, size_t nunique, double *x, double *y, dou
 void bart::predict(size_t p, size_t n, double *x, double *fp)
   //uses: m,t,xi
 {
-  double *fptemp = new double[n];
-
-  for(size_t j=0;j<n;j++) fp[j]=0.0;
-  for(size_t j=0;j<m;j++) {
-    fit(t[j],xi,p,n,x,fptemp);
-    for(size_t k=0;k<n;k++) fp[k] += fptemp[k];
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 128)
+#endif
+  for(size_t i=0;i<n;i++) {
+    double fsum = 0.0;
+    for(size_t j=0;j<m;j++) {
+      tree::tree_p bn = t[j].bn(x+i*p,xi);
+      fsum += bn->gettheta();
+    }
+    fp[i] = fsum;
   }
-
-  delete[] fptemp;
 }
 //--------------------------------------------------
 void bart::draw(double sigma, rn& gen)
 {
   for(size_t j=0;j<m;j++) {
     fit(t[j],xi,p,n,x,ftemp);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
     for(size_t k=0;k<n;k++) {
       allfit[k] = allfit[k]-ftemp[k];
       r[k] = y[k]-allfit[k];
@@ -126,6 +131,9 @@ void bart::draw(double sigma, rn& gen)
     bd(t[j],xi,di,pi,sigma,nv,pv,aug,gen);
     drmu(t[j],xi,di,pi,sigma,gen);
     fit(t[j],xi,p,n,x,ftemp);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
     for(size_t k=0;k<n;k++) allfit[k] += ftemp[k];
   }
   if(dartOn) {

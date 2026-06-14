@@ -268,8 +268,17 @@ RcppExport SEXP cwbart(
 
 #endif
 
-    for(size_t i=0;i<n;i++) trmean[i]=0.0;
-    for(size_t i=0;i<np;i++) temean[i]=0.0;
+    double *trmean_data = n ? &trmean[0] : NULL;
+    double *temean_data = np ? &temean[0] : NULL;
+
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
+    for(size_t i=0;i<n;i++) trmean_data[i]=0.0;
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(np > 256)
+#endif
+    for(size_t i=0;i<np;i++) temean_data[i]=0.0;
 
     printf("*****Into main of wbart\n");
     //-----------------------------------------------------------
@@ -344,6 +353,9 @@ RcppExport SEXP cwbart(
     //sigma
     //gen.set_df(n+nu);
     double *svec = new double[n];
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
     for(size_t i=0;i<n;i++) svec[i]=iw[i]*sigma;
 
     // matern priors
@@ -376,7 +388,7 @@ RcppExport SEXP cwbart(
     //out of sample fit
     double* fhattest=0; //posterior mean for prediction
     if(np) { fhattest = new double[np]; }
-    double restemp=0.0,rss=0.0;
+    double rss=0.0;
 
 
     //--------------------------------------------------
@@ -441,7 +453,13 @@ RcppExport SEXP cwbart(
       if (iftest == false) {
         double flag = 0; // if flag 1, MH, else gibbs
         if (flag == 1) {
-          for(size_t k=0;k<n;k++) {restemp=(iy[k]-bm.f(k))/(iw[k]); rss += restemp*restemp;}
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) reduction(+:rss) if(n > 256)
+#endif
+          for(size_t k=0;k<n;k++) {
+            double resk=(iy[k]-bm.f(k))/(iw[k]);
+            rss += resk*resk;
+          }
           double sigma_0 = svec[0];
           //double rands = gen.uniform();
           double rands = arma::randn<double>();
@@ -477,8 +495,17 @@ RcppExport SEXP cwbart(
         } else {
 
         // OG parts
-        for(size_t k=0;k<n;k++) {restemp=(iy[k]-bm.f(k))/(iw[k]); rss += restemp*restemp;}
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) reduction(+:rss) if(n > 256)
+#endif
+        for(size_t k=0;k<n;k++) {
+          double resk=(iy[k]-bm.f(k))/(iw[k]);
+          rss += resk*resk;
+        }
         sigma = sqrt((nu*lambda + rss)/gen.chi_square(n+nu));
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
         for(size_t k=0;k<n;k++) svec[k]=iw[k]*sigma;
         sdraw[i]=sigma;
         mliks[i] = -100000;
@@ -499,7 +526,10 @@ RcppExport SEXP cwbart(
         //}
         // sum of tree fitted values
         // to be divided over iterations later
-        for(size_t k=0;k<n;k++) trmean[k]+=bm.f(k);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
+        for(size_t k=0;k<n;k++) trmean_data[k]+=bm.f(k);
 
         if(nkeeptrain && (((i-(burn+nwarmup)+1) % skiptr) ==0)) {
           //index = trcnt*n;;
@@ -518,7 +548,10 @@ RcppExport SEXP cwbart(
           tecnt+=1;
         }
         if(keeptestme) {
-          for(size_t k=0;k<np;k++) temean[k]+=fhattest[k];
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(np > 256)
+#endif
+          for(size_t k=0;k<np;k++) temean_data[k]+=fhattest[k];
           temecnt+=1;
         }
         keeptreedraw = nkeeptreedraws && (((i-(burn+nwarmup)+1) % skiptreedraws) ==0);
@@ -560,8 +593,14 @@ RcppExport SEXP cwbart(
     }
     int time2 = time(&tp);
     printf("time: %ds\n",time2-time1);
-    for(size_t k=0;k<n;k++) trmean[k]/=nd;
-    for(size_t k=0;k<np;k++) temean[k]/=temecnt;
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(n > 256)
+#endif
+    for(size_t k=0;k<n;k++) trmean_data[k]/=nd;
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(np > 256)
+#endif
+    for(size_t k=0;k<np;k++) temean_data[k]/=temecnt;
     printf("check counts\n");
     printf("trcnt,tecnt,temecnt,treedrawscnt: %zu,%zu,%zu,%zu\n",trcnt,tecnt,temecnt,treedrawscnt);
     //--------------------------------------------------

@@ -1,0 +1,188 @@
+---
+title: "Athens Property Prices with BARTSIMP"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Athens Property Prices with BARTSIMP}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+This vignette demonstrates a small spatial regression workflow with
+`BARTSIMP` using the `properties` point data from the `spData` package.
+The data record property prices in Athens, Greece. We model price per square
+meter (`prpsqm`) using property age (`age`) and distance to the nearest metro
+station (`dist_metro`), while using the point geometry as spatial coordinates.
+
+```{r setup}
+library(BARTSIMP)
+library(sf)
+library(spData)
+```
+
+## Data Preparation
+
+The `properties` object is an `sf` point data set. Its coordinate reference
+system is GGRS87 / Greek Grid, so the point coordinates are already projected
+in meters.
+
+```{r data}
+data("properties", package = "spData")
+
+properties_attr <- sf::st_drop_geometry(properties)
+properties_small <- properties[
+  complete.cases(properties_attr[, c("prpsqm", "age", "dist_metro")]),
+]
+
+coords <- sf::st_coordinates(properties_small)
+
+athens_df <- data.frame(
+  prpsqm = properties_small$prpsqm,
+  age = properties_small$age,
+  dist_metro = properties_small$dist_metro,
+  s1 = coords[, 1],
+  s2 = coords[, 2]
+)
+
+head(athens_df)
+summary(athens_df[, c("prpsqm", "age", "dist_metro")])
+```
+
+For a quick demonstration, use a reproducible train/test split. The predictors
+are scaled before fitting so the two covariates have comparable numeric ranges.
+
+```{r split}
+set.seed(2026)
+
+n_train <- min(180, floor(0.7 * nrow(athens_df)))
+train_id <- sample(seq_len(nrow(athens_df)), n_train)
+test_id <- setdiff(seq_len(nrow(athens_df)), train_id)
+
+test_id <- test_id[seq_len(min(60, length(test_id)))]
+
+x_all <- scale(athens_df[, c("age", "dist_metro")])
+x_all <- as.data.frame(x_all)
+
+x_train <- x_all[train_id, , drop = FALSE]
+y_train <- athens_df$prpsqm[train_id]
+s_train <- athens_df[train_id, c("s1", "s2")]
+
+x_test <- x_all[test_id, , drop = FALSE]
+y_test <- athens_df$prpsqm[test_id]
+s_test <- athens_df[test_id, c("s1", "s2")]
+```
+
+The spatial distribution of the selected training and test points can be
+checked before fitting.
+
+```{r plot-split}
+plot(
+  athens_df$s1,
+  athens_df$s2,
+  col = "grey80",
+  pch = 16,
+  asp = 1,
+  xlab = "Greek Grid easting",
+  ylab = "Greek Grid northing"
+)
+points(s_train$s1, s_train$s2, col = "#0072B2", pch = 16)
+points(s_test$s1, s_test$s2, col = "#D55E00", pch = 17)
+legend(
+  "topright",
+  legend = c("Training", "Test"),
+  col = c("#0072B2", "#D55E00"),
+  pch = c(16, 17),
+  bty = "n"
+)
+```
+
+## Fit BARTSIMP
+
+The following code fits `BARTSIMP` to the Athens property data. The iteration
+counts are intentionally small for demonstration. For analysis, increase
+`ntree`, `ndpost`, `nskip`, and `nwarmup`, then inspect convergence and
+posterior predictive summaries.
+
+```{r fit, eval = FALSE}
+fit <- bartsimp(
+  x.train = x_train,
+  y.train = y_train,
+  x.test = x_test,
+  s1 = s_train$s1,
+  s2 = s_train$s2,
+  s1.test = s_test$s1,
+  s2.test = s_test$s2,
+  ntree = 50,
+  ndpost = 100,
+  nskip = 50,
+  nwarmup = 100,
+  seed = 2026,
+  usecoords = TRUE,
+  range_new = 2500,
+  sig_m_new = sd(y_train) / 2,
+  sigest_new = sd(y_train) / 2
+)
+```
+
+The posterior mean of the BART component for the test set can be compared with
+the observed test outcomes.
+
+```{r bart-summary, eval = FALSE}
+bart_pred <- colMeans(fit$yhat.test)
+
+sqrt(mean((bart_pred - y_test)^2))
+plot(
+  y_test,
+  bart_pred,
+  xlab = "Observed price per square meter",
+  ylab = "Predicted price per square meter",
+  pch = 16
+)
+abline(0, 1, col = "grey40", lty = 2)
+```
+
+## Add Spatial Residual Correction
+
+`bartsimp_predict()` combines posterior BART draws with a Matern spatial field
+fit to the training residuals. It uses the mesh returned by `bartsimp()`.
+
+```{r spatial-predict, eval = FALSE}
+spatial_pred <- bartsimp_predict(
+  y_train = y_train,
+  tree_draws_train = fit$yhat.train,
+  tree_draws_test = fit$yhat.test,
+  s_train = s_train,
+  s_test = s_test,
+  kappas = fit$kappas,
+  sigmams = fit$sigmams,
+  sigma_obs = fit$sigma,
+  mesh = fit$mesh,
+  verbose = TRUE
+)
+
+pred_mean <- colMeans(spatial_pred$prediction_mean_test)
+
+sqrt(mean((pred_mean - y_test)^2))
+```
+
+The posterior draws can also be summarized into pointwise uncertainty
+intervals.
+
+```{r intervals, eval = FALSE}
+pred_interval <- apply(
+  spatial_pred$prediction_mean_test,
+  2,
+  quantile,
+  probs = c(0.05, 0.5, 0.95)
+)
+
+t(pred_interval[, seq_len(min(6, ncol(pred_interval)))])
+```
