@@ -10,6 +10,15 @@
 #' @param y the response variable
 #' @importFrom Rcpp sourceCpp
 #' @return The marginal likelihood for the model
+#'
+#' @examples
+#' \dontrun{
+#' s1 <- c(0, 0.5, 1)
+#' s2 <- c(0, 0.5, 1)
+#' y <- c(1.2, 0.8, 1.5)
+#' mySPDE(s1, s2, y)
+#' }
+#'
 #' @export
 mySPDE <- function(s1, s2, y) {
     .Call(`_BARTSIMP_mySPDE`, s1, s2, y)
@@ -56,7 +65,12 @@ test2 <- function(mydf) {
 #'
 #' @useDynLib BARTSIMP, .registration = TRUE
 #' @importFrom Rcpp sourceCpp
-#' @param x A single integer.
+#' @return Integer value `0`, invisibly printing diagnostic information from
+#'   the native tree test routine.
+#'
+#' @examples
+#' timesTwo()
+#'
 #' @export
 timesTwo <- function() {
     .Call(`_BARTSIMP_timesTwo`)

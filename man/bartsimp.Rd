@@ -113,7 +113,6 @@ An object containing:
 \item{varprob}{Variable inclusion probabilities}
 \item{proc.time}{Execution time}
 }
-
 }
 \description{
 Fits a Bayesian Additive Regression Trees (BART) model with
@@ -122,6 +121,29 @@ spatial variance components.
 \details{
 This function is a simplified interface to the underlying C++ sampler.
 The design is inspired by the original BART R package.
+}
+\examples{
+\dontrun{
+data("toy_data")
+
+x_train <- toy_data[1:20, c("x1", "x2", "x3", "x4", "x5")]
+y_train <- toy_data$y[1:20]
+
+fit <- bartsimp(
+  x.train = x_train,
+  y.train = y_train,
+  s1 = toy_data$s1[1:20],
+  s2 = toy_data$s2[1:20],
+  ntree = 5,
+  ndpost = 5,
+  nskip = 2,
+  nwarmup = 5,
+  seed = 1
+)
+
+str(fit$yhat.train.mean)
+}
+
 }
 \references{
 Jiang, A. Z., & Wakefield, J. (2025).

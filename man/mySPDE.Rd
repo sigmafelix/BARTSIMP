@@ -23,3 +23,12 @@ The marginal likelihood for the model
 A prototype function that runs the inla function and
 returns the marginal log-likelihood
 }
+\examples{
+\dontrun{
+s1 <- c(0, 0.5, 1)
+s2 <- c(0, 0.5, 1)
+y <- c(1.2, 0.8, 1.5)
+mySPDE(s1, s2, y)
+}
+
+}

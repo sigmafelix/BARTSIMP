@@ -1,6 +1,6 @@
 Package: BARTSIMP
 Title: BART for Spatial INLA Modeling and Prediction
-Version: 0.0.0.9000
+Version: 0.0.1.9000
 Authors@R: 
     person(given = "Alex Ziyu",
            family = "Jiang",
@@ -12,13 +12,14 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Depends: 
     INLA,
     R (>= 2.10)
 LinkingTo: 
     Rcpp, RcppArmadillo
 Imports: 
+    fmesher,
     Rcpp
 Suggests:
     BART
+Config/roxygen2/version: 8.0.0

@@ -92,7 +92,7 @@ RcppExport SEXP cwbart(
   Rcpp::NumericVector vsize_dat(_size_dat);
   double *size_dat = &vsize_dat[0];
   Rcpp::NumericVector  xpv(_ixp);
-  double *ixp = &xpv[0];
+  double *ixp = np ? &xpv[0] : NULL;
   size_t m = Rcpp::as<int>(_im);
   Rcpp::IntegerVector _nc(_inc);
   int *numcut = &_nc[0];
@@ -254,7 +254,9 @@ RcppExport SEXP cwbart(
     std::vector<double*> tedraw(nkeeptest);
 
     for(size_t i=0; i<nkeeptrain; ++i) trdraw[i]=&_trdraw[i*n];
-    for(size_t i=0; i<nkeeptest; ++i) tedraw[i]=&_tedraw[i*np];
+    if (np) {
+      for(size_t i=0; i<nkeeptest; ++i) tedraw[i]=&_tedraw[i*np];
+    }
 
     std::vector< std::vector<size_t> > varcnt;
     std::vector< std::vector<double> > varprb;

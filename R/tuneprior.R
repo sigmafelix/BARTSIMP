@@ -1,5 +1,34 @@
+#' Tune Spatial Hyperpriors
+#'
+#' Fits a small INLA/SPDE model to obtain rough starting values for the
+#' observation noise, spatial range, and spatial standard deviation priors.
+#'
+#' @param x_train Matrix or data frame of training covariates.
+#' @param y_train Numeric vector of training responses.
+#' @param s1 Numeric vector of first spatial coordinates.
+#' @param s2 Numeric vector of second spatial coordinates.
+#'
+#' @return A list containing tuned values for `sigest_new`, `range_new`,
+#'   `sig_m_new`, `sigmam_0`, and `rho_0`.
+#'
+#' @examples
+#' \dontrun{
+#' data("toy_data")
+#'
+#' priors <- tunehyperpriors(
+#'   x_train = toy_data[1:30, c("x1", "x2", "x3", "x4", "x5")],
+#'   y_train = toy_data$y[1:30],
+#'   s1 = toy_data$s1[1:30],
+#'   s2 = toy_data$s2[1:30]
+#' )
+#'
+#' priors$sigest_new
+#' }
+#'
 #' @export
-library(INLA)
+#' @importFrom INLA inla.spde2.pcmatern inla.spde.make.A inla.stack inla.stack.data inla.stack.A inla
+#' @importFrom stats lm sigma qchisq
+#' @importFrom fmesher fm_mesh_2d_inla
 tunehyperpriors = function(x_train,
                            y_train,
                            s1,
@@ -33,7 +62,7 @@ tunehyperpriors = function(x_train,
   alpha_1 <- alpha_2 <- 0.05
 
   ### spatial domain (xmin, xmax) x (ymin, ymax)
-  mesh1 <- inla.mesh.2d(
+  mesh1 <- fmesher::fm_mesh_2d_inla(
     loc.domain = cbind(c(xmin, xmax, xmax, xmin), c(ymin, ymin, ymax, ymax)),
     max.edge = c(.1, .2) * avg_lth,
     offset = c(.1, .2) * avg_lth
@@ -42,7 +71,7 @@ tunehyperpriors = function(x_train,
   loc_unique <- s_train_unique
   loc <- s_train
 
-  mesh2 <- inla.mesh.2d(
+  mesh2 <- fmesher::fm_mesh_2d_inla(
     loc.domain = data.frame(loc_unique) ,
     max.edge = c(.1, .2) * avg_lth,
     cutoff = 0.05 * avg_lth

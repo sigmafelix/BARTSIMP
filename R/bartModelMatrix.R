@@ -16,6 +16,38 @@
 ## along with this program; if not, a copy is available at
 ## https://www.R-project.org/Licenses/GPL-2
 
+#' Create a BART Model Matrix
+#'
+#' Converts vectors, factors, matrices, or data frames into the numeric model
+#' matrix representation used by the BART sampler. When requested, the function
+#' also computes predictor cut points and tracks removed constant columns.
+#'
+#' @param X A factor, vector, matrix, data frame, or `NULL` containing
+#'   predictors.
+#' @param numcut Integer number of cut points to compute for each predictor.
+#'   If `0`, only the numeric model matrix is returned.
+#' @param usequants Logical; if `TRUE`, use empirical quantiles for cut points.
+#' @param type Quantile algorithm passed to [stats::quantile()].
+#' @param rm.const Logical; if `TRUE`, remove constant predictor columns.
+#' @param cont Logical; if `TRUE`, use equally spaced cut points over the
+#'   observed range.
+#' @param xinfo Optional list or matrix of user-supplied cut points.
+#'
+#' @return If `numcut = 0`, a numeric matrix. Otherwise, a list containing the
+#'   model matrix `X`, cut point counts `numcut`, retained columns `rm.const`,
+#'   cut points `xinfo`, and original variable groups `grp`.
+#'
+#' @examples
+#' predictors <- data.frame(
+#'   x1 = c(0.1, 0.4, 0.8, 1.2),
+#'   group = factor(c("a", "b", "a", "b"))
+#' )
+#'
+#' mm <- bartModelMatrix(predictors, numcut = 3, rm.const = TRUE)
+#' str(mm)
+#'
+#' bartModelMatrix(predictors)
+#'
 #' @export
 bartModelMatrix=function(X, numcut=0L, usequants=FALSE, type=7,
                          rm.const=FALSE, cont=FALSE, xinfo=NULL) {

@@ -143,7 +143,8 @@ double test(Rcpp::NumericVector s1,
   formula1 += "f(i, model = spde)";
   cout << formula1 << endl;
   Function form("as.formula");
-  Function inlaMesh2D = env["inla.mesh.2d"];
+  Environment fmesher_env = Environment::namespace_env("fmesher");
+  Function inlaMesh2D = fmesher_env["fm_mesh_2d_inla"];
   Rcpp::NumericVector edge_arg = {1.0,1.0};
   Rcpp::List mesh = inlaMesh2D(Rcpp::_["loc"] = dfout,
                                Rcpp::_["max.edge"] = edge_arg);
@@ -356,5 +357,4 @@ double test2(Rcpp::DataFrame mydf) {
 
   return 0;
 }
-
 

@@ -59,6 +59,29 @@
 #' https://doi.org/10.1016/j.sste.2025.100757
 #'
 #' The interface design is inspired by the BART R package.
+#'
+#' @examples
+#' \dontrun{
+#' data("toy_data")
+#'
+#' x_train <- toy_data[1:20, c("x1", "x2", "x3", "x4", "x5")]
+#' y_train <- toy_data$y[1:20]
+#'
+#' fit <- bartsimp(
+#'   x.train = x_train,
+#'   y.train = y_train,
+#'   s1 = toy_data$s1[1:20],
+#'   s2 = toy_data$s2[1:20],
+#'   ntree = 5,
+#'   ndpost = 5,
+#'   nskip = 2,
+#'   nwarmup = 5,
+#'   seed = 1
+#' )
+#'
+#' str(fit$yhat.train.mean)
+#' }
+#'
 #' @export
 bartsimp=function(
     x.train, y.train, s1, s2, x.test = matrix(0.0,0,0), s1.test = NULL, s2.test = NULL,

@@ -111,7 +111,7 @@ double heterbart::draw_sigmaupdate(double *sigma, rn& gen, double nu, double lam
     r_sigma_[k] = r_sigma[k];
   }
   //cout << "sd " << Rcpp::sd(r_sigma_);
-  sigma[0] = heterbd_drawsigma(di, r_sigma, sigma[0],kappa, sigma_m, pi, nu, lambda, gen, isexact);
+  sigma[0] = heterbd_drawsigma(di, r_sigma, sigma[0],kappa, sigma_m, pi, nu, lambda, gen, isexact, mlik);
   heterbd_drawspathyperpars(di, r_sigma,sigma[0], kappa, sigma_m, pi, mlik, gen, isexact);
 
   //if(dartOn) {
@@ -232,8 +232,9 @@ arma::sp_mat heterbart::convertSparse(Rcpp::S4 mat) {
 // create mesh
 void heterbart::makemesh() {
   Environment env("package:INLA");
+  Environment fmesher_env = Environment::namespace_env("fmesher");
   Rcpp::List myList(2);
-  Function inlaMesh2D = env["inla.mesh.2d"];
+  Function inlaMesh2D = fmesher_env["fm_mesh_2d_inla"];
   // Rcpp::NumericVector edge_arg(2);
   // edge_arg[0] = 0.04;
   // edge_arg[1] = 0.08;
@@ -275,8 +276,9 @@ void heterbart::makemesh() {
 // create mesh, by points
 void heterbart::makemesh_bypoints() {
   Environment env("package:INLA");
+  Environment fmesher_env = Environment::namespace_env("fmesher");
   Rcpp::List myList(2);
-  Function inlaMesh2D = env["inla.mesh.2d"];
+  Function inlaMesh2D = fmesher_env["fm_mesh_2d_inla"];
   Rcpp::NumericVector domainvec = {0.0,1.0,1.0,0.0,0.0,0.0,1.0,1.0};
   domainvec.attr("dim") = Rcpp::Dimension(4,2);
   Rcpp::CharacterVector namevec;
@@ -324,7 +326,8 @@ void heterbart::makemesh_bypoints() {
 // create mesh from unique spatial point pairs
 void heterbart::makemesh_bypoints_unique() {
   Rcpp::Environment env("package:INLA");
-  Rcpp::Function inlaMesh2D = env["inla.mesh.2d"];
+  Rcpp::Environment fmesher_env = Rcpp::Environment::namespace_env("fmesher");
+  Rcpp::Function inlaMesh2D = fmesher_env["fm_mesh_2d_inla"];
   Rcpp::Function inlaSpdeMakeA = env["inla.spde.make.A"];
   Rcpp::Function unique_fun("unique");
 

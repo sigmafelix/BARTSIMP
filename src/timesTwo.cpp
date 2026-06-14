@@ -19,7 +19,12 @@
 //'
 //' @useDynLib BARTSIMP, .registration = TRUE
 //' @importFrom Rcpp sourceCpp
-//' @param x A single integer.
+//' @return Integer value `0`, invisibly printing diagnostic information from
+//'   the native tree test routine.
+//'
+//' @examples
+//' timesTwo()
+//'
 //' @export
 // [[Rcpp::export]]
 int timesTwo() {
@@ -32,5 +37,4 @@ int timesTwo() {
   mytree.pr(true);
   return 0;
 }
-
 

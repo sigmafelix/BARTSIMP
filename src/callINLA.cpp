@@ -20,6 +20,15 @@ using namespace Rcpp;
 //' @param y the response variable
 //' @importFrom Rcpp sourceCpp
 //' @return The marginal likelihood for the model
+//'
+//' @examples
+//' \dontrun{
+//' s1 <- c(0, 0.5, 1)
+//' s2 <- c(0, 0.5, 1)
+//' y <- c(1.2, 0.8, 1.5)
+//' mySPDE(s1, s2, y)
+//' }
+//'
 //' @export
 // [[Rcpp::export]]
 RcppExport SEXP mySPDE(Rcpp::NumericVector s1,
@@ -39,7 +48,8 @@ RcppExport SEXP mySPDE(Rcpp::NumericVector s1,
   Rcpp::DataFrame dfout(myList);
   std::string formula = "y ~ -1 + f(i, model = spde)";
   Function form("as.formula");
-  Function inlaMesh2D = env["inla.mesh.2d"];
+  Environment fmesher_env = Environment::namespace_env("fmesher");
+  Function inlaMesh2D = fmesher_env["fm_mesh_2d_inla"];
   Rcpp::NumericVector edge_arg = {1.0,1.0};
   Rcpp::List mesh = inlaMesh2D(Rcpp::_["loc"] = dfout,
                                Rcpp::_["max.edge"] = edge_arg);
@@ -104,4 +114,3 @@ RcppExport SEXP mySPDE(Rcpp::NumericVector s1,
                                       Rcpp::_["sigma2x"] = 1);
   return inla_results["mlik"];
 }
-

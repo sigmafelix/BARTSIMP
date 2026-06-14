@@ -45,7 +45,7 @@ bool heterbd_new_test(tree& x, xinfo& xi, double* r, dinfo& di, pinfo& pi, doubl
 double heterbd_drawsigma_margprob_SPDEapprox(double* r, dinfo& di, pinfo& pi, double sigma, double &sigma_m, double &kappa);
 double heterbd_drawsigma_margprob_exact(double* r, dinfo& di, pinfo& pi, double sigma, double &sigma_m, double &kappa);
 double heterbd_drawsigma_margprob(double* r, dinfo& di, pinfo& pi, double sigma, double &sigma_m, double &kappa);
-double heterbd_drawsigma(dinfo& di, double* r, double sigma, double &kappa,double &sigma_m, pinfo& pi, double lambda, double nu, rn& gen, bool isexact);
+double heterbd_drawsigma(dinfo& di, double* r, double sigma, double &kappa,double &sigma_m, pinfo& pi, double lambda, double nu, rn& gen, bool isexact, double &mlik);
 double heterbd_drawsigma_margprob_test(double* r, dinfo& di, pinfo& pi, double sigma);
 double mlikcalcweighted (double* r, dinfo& di, pinfo& pi, double sigma, double &sigma_m, double &kappa);
 void heterbd_drawspathyperpars(dinfo& di, double* r, double sigma, double &kappa, double &sigma_m, pinfo& pi, double &mlik, rn& gen, bool isexact);

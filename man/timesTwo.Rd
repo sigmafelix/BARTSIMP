@@ -6,9 +6,14 @@
 \usage{
 timesTwo()
 }
-\arguments{
-\item{x}{A single integer.}
+\value{
+Integer value \code{0}, invisibly printing diagnostic information from
+the native tree test routine.
 }
 \description{
 Multiply a number by two
+}
+\examples{
+timesTwo()
+
 }

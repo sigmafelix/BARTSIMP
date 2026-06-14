@@ -51,7 +51,7 @@ level.}
 
 \item{mesh}{An \code{INLA} mesh object defining the SPDE approximation to the
 spatial Gaussian field. Typically created using
-\code{INLA::inla.mesh.2d()}.}
+\code{fmesher::fm_mesh_2d_inla()}.}
 
 \item{nu}{Shape parameter used when fixing the observation precision prior
 (only relevant when \code{sigma_obs} is provided).}
@@ -129,14 +129,42 @@ while the Gaussian field accounts for residual spatial dependence.
 }
 \examples{
 \dontrun{
+data("toy_data")
+
+x_train <- toy_data[1:20, c("x1", "x2", "x3", "x4", "x5")]
+y_train <- toy_data$y[1:20]
+s_train <- toy_data[1:20, c("s1", "s2")]
+x_test <- toy_data[21:25, c("x1", "x2", "x3", "x4", "x5")]
+s_test <- toy_data[21:25, c("s1", "s2")]
+
+fit <- bartsimp(
+  x.train = x_train,
+  y.train = y_train,
+  x.test = x_test,
+  s1 = s_train$s1,
+  s2 = s_train$s2,
+  s1.test = s_test$s1,
+  s2.test = s_test$s2,
+  ntree = 5,
+  ndpost = 5,
+  nskip = 2,
+  nwarmup = 5,
+  seed = 1
+)
+
+mesh <- fmesher::fm_mesh_2d_inla(
+  loc = as.matrix(s_train),
+  max.edge = c(0.2, 0.4)
+)
+
 result <- bartsimp_predict(
-  y_train = y,
-  tree_draws_train = bart_train_draws,
-  tree_draws_test = bart_test_draws,
-  s_train = coords_train,
-  s_test = coords_test,
-  kappas = kappas,
-  sigmams = sigmams,
+  y_train = y_train,
+  tree_draws_train = fit$yhat.train,
+  tree_draws_test = fit$yhat.test,
+  s_train = s_train,
+  s_test = s_test,
+  kappas = fit$kappas,
+  sigmams = fit$sigmams,
   mesh = mesh
 )
 

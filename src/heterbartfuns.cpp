@@ -187,7 +187,7 @@ arma::mat calcPrecMat(dinfo& di, pinfo& pi, double sigma) {
   arma::mat x_ = as<arma::mat>(cov); // Sigma
   arma::mat y_(di.n, di.n, fill::eye);
   y_ = y_* sigma * sigma;
-  arma::mat res = (x_ + y_).i();
+  arma::mat res = arma::inv_sympd(x_ + y_);
   return res;
 }
 
@@ -211,21 +211,36 @@ arma::mat calcCovMat(dinfo& di, pinfo& pi, double sigma) {
 
 // [[Rcpp::depends(RcppArmadillo)]]
 arma::mat calcMat_weighted(dinfo& di, pinfo& pi, double sigma, double sigmax, double kappa) {
-  //arma::arma_rng::set_seed(1);
-  Rcpp::DataFrame dfout = getUniqueCoordsDf(di);
-  Environment env("package:BARTSIMP");
-  Function maternmat = env["matern.mat"];
-  Rcpp::NumericMatrix cov = maternmat(Rcpp::_["nu"] = pi.nu,
-                                      Rcpp::_["kappa"] = kappa,
-                                      Rcpp::_["coords"] = dfout,
-                                      Rcpp::_["sigma2e"] = 0,
-                                      Rcpp::_["sigma2x"] = sigmax*sigmax);
-  arma::mat x_ = as<arma::mat>(cov); // Sigma
-  arma::mat y_(di.nunique, di.nunique, fill::eye);
-  for (int i = 0; i < di.nunique; i++) {
-    y_(i,i) = y_(i,i)* sigma * sigma/di.dat_size[i];
+  static const dinfo* cached_di = NULL;
+  static double cached_nu = NA_REAL;
+  static double cached_sigmax = NA_REAL;
+  static double cached_kappa = NA_REAL;
+  static arma::mat cached_cov;
+
+  if (cached_di != &di ||
+      cached_nu != pi.nu ||
+      cached_sigmax != sigmax ||
+      cached_kappa != kappa ||
+      cached_cov.n_rows != static_cast<arma::uword>(di.nunique)) {
+    Rcpp::DataFrame dfout = getUniqueCoordsDf(di);
+    Environment env("package:BARTSIMP");
+    Function maternmat = env["matern.mat"];
+    Rcpp::NumericMatrix cov = maternmat(Rcpp::_["nu"] = pi.nu,
+                                        Rcpp::_["kappa"] = kappa,
+                                        Rcpp::_["coords"] = dfout,
+                                        Rcpp::_["sigma2e"] = 0,
+                                        Rcpp::_["sigma2x"] = sigmax*sigmax);
+    cached_cov = as<arma::mat>(cov); // Sigma
+    cached_di = &di;
+    cached_nu = pi.nu;
+    cached_sigmax = sigmax;
+    cached_kappa = kappa;
   }
-  arma::mat res = (x_ + y_);
+
+  arma::mat res = cached_cov;
+  for (int i = 0; i < di.nunique; i++) {
+    res(i,i) += sigma * sigma/di.dat_size[i];
+  }
   return res;
 }
 
@@ -235,7 +250,7 @@ arma::mat calcPrecMat_test(dinfo& di, pinfo& pi, double sigma) {
   Function maternmat = env["matern.mat"];
   arma::mat y_(di.n, di.n, fill::eye);
   y_ = y_* (sigma * sigma);
-  arma::mat res = (y_).i();
+  arma::mat res = arma::diagmat(arma::vec(di.n, arma::fill::ones)/(sigma*sigma));
   return res;
 }
 
@@ -308,8 +323,8 @@ void heterdrmu_new(tree& t, xinfo& xi, dinfo& di, pinfo& pi, double sigma,
   arma::mat temp1 = Cmat.t()*prec;
   arma::mat temp2(Cmat.n_cols , Cmat.n_cols, fill::eye);
   temp2 = temp2 * pi.tau * pi.tau;
-  temp2 = (temp1*Cmat + temp2).i();
-  arma::mat L = arma::chol(temp2, "lower");
+  arma::mat K = temp1*Cmat + temp2;
+  arma::mat L = arma::chol(K, "lower");
   //MyFile << "==== L ====" << endl;
   // for (int i = 0; i < L.n_rows; i++) {
   //   for (int j = 0; j < L.n_cols; j++) {
@@ -317,7 +332,9 @@ void heterdrmu_new(tree& t, xinfo& xi, dinfo& di, pinfo& pi, double sigma,
   //   }
   //   MyFile << endl;
   // }
-  arma::vec meanvec = temp2*temp1*yhat;
+  arma::vec rhs = temp1*yhat;
+  arma::vec meanvec = arma::solve(arma::trimatu(L.t()),
+                                  arma::solve(arma::trimatl(L), rhs));
   //arma::arma_rng::set_seed_random();
   GetRNGstate();
   Rcpp::NumericVector gmu = Rcpp::rnorm(Cmat.n_cols);
@@ -331,7 +348,7 @@ void heterdrmu_new(tree& t, xinfo& xi, dinfo& di, pinfo& pi, double sigma,
     MyFile << tempz(i) << " ";
   }
   //MyFile << endl;
-  arma::vec mudraws = meanvec + L*tempz;
+  arma::vec mudraws = meanvec + arma::solve(arma::trimatu(L.t()), tempz);
   //MyFile << "==== mudraws ====" << endl;
   // for (int i = 0; i < mudraws.size(); i++) {
   //   MyFile << mudraws(i) << " ";
@@ -424,11 +441,11 @@ void heterdrmu_new_approx(tree& t, xinfo& xi, dinfo& di, pinfo& pi, double sigma
   arma::sp_mat Q_sp = Rcpp::as<arma::sp_mat>(Q);
   arma::sp_mat A_sp = di.A_unique;
   arma::sp_mat mat_1 = (1/sigma/sigma*A_sp.t()*A_sp + Q_sp);
-  arma::mat mydiag(mat_1.n_rows , mat_1.n_cols, fill::eye);
-  arma::mat mat_1_inv = arma::spsolve(mat_1, mydiag, "lapack");
-  arma::mat mat_2 = A_sp*mat_1_inv*A_sp.t()/(sigma*sigma*sigma*sigma);
-  arma::mat mat_3(A_sp.n_rows, A_sp.n_rows, fill::eye);
-  arma::mat mat_temp = mat_3/sigma/sigma - mat_2;
+  arma::mat solved_A = arma::spsolve(mat_1, arma::mat(A_sp.t()), "lapack");
+  arma::mat mat_temp_C = Cmat/(sigma*sigma) -
+    arma::mat(A_sp) * (solved_A * Cmat)/(sigma*sigma*sigma*sigma);
+  arma::vec mat_temp_y = yhat/(sigma*sigma) -
+    arma::mat(A_sp) * (solved_A * yhat)/(sigma*sigma*sigma*sigma);
   // calculating V matrix
   arma::mat diag_temp(Cmat.n_cols , Cmat.n_cols, arma::fill::eye);
   // cout << Cmat.n_cols << endl;
@@ -436,8 +453,8 @@ void heterdrmu_new_approx(tree& t, xinfo& xi, dinfo& di, pinfo& pi, double sigma
   // cout << pi.tau << endl;
   // cout << mat_temp.n_cols << endl;
   // cout << diag_temp.n_cols << endl;
-  arma::mat V_inv = Cmat.t()*mat_temp*Cmat + pi.tau*pi.tau*diag_temp;
-  arma::vec m = V_inv*Cmat.t()*mat_temp*yhat;
+  arma::mat V_inv = Cmat.t()*mat_temp_C + pi.tau*pi.tau*diag_temp;
+  arma::vec m = V_inv*Cmat.t()*mat_temp_y;
   arma::mat L = arma::chol(V_inv, "lower");
   arma::vec tempz(Cmat.n_cols, arma::fill::randn);
   arma::vec tempv = solve(L, tempz);
@@ -519,12 +536,14 @@ void heterdrmu_new_test(tree& t, xinfo& xi, dinfo& di, pinfo& pi, double sigma, 
   arma::mat temp1 = Cmat.t()*prec;
   arma::mat temp2(Cmat.n_cols , Cmat.n_cols, fill::eye);
   temp2 = temp2 * pi.tau *pi.tau;
-  temp2 = (temp1*Cmat + temp2).i();
-  arma::mat L = arma::chol(temp2, "lower");
-  arma::vec meanvec = temp2*temp1*yhat;
+  arma::mat K = temp1*Cmat + temp2;
+  arma::mat L = arma::chol(K, "lower");
+  arma::vec rhs = temp1*yhat;
+  arma::vec meanvec = arma::solve(arma::trimatu(L.t()),
+                                  arma::solve(arma::trimatl(L), rhs));
   //arma::arma_rng::set_seed_random();
   arma::vec tempz(Cmat.n_cols, arma::fill::randn);
-  arma::vec mudraws = meanvec + L*tempz;
+  arma::vec mudraws = meanvec + arma::solve(arma::trimatu(L.t()), tempz);
   // get a list of unique bot ids
   std::set<int> s;
   unsigned size = idv1.size();
@@ -539,6 +558,4 @@ void heterdrmu_new_test(tree& t, xinfo& xi, dinfo& di, pinfo& pi, double sigma, 
   //arma::mat prec =
   return;
 }
-
-
 

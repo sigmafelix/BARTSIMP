@@ -7,6 +7,24 @@
 #include <iostream>
 #include <fstream>
 
+static double dmvnorm_rcpp_chol(const arma::vec& y, const arma::mat& Sigma)
+{
+  arma::mat L;
+  if (!arma::chol(L, Sigma, "lower")) {
+    arma::mat Sigma_inv = arma::inv_sympd(Sigma);
+    double log_det = arma::log_det_sympd(Sigma);
+    double dist = arma::as_scalar(y.t() * Sigma_inv * y);
+    double log_2pi = std::log(2.0 * 3.14159265358979);
+    return -0.5 * (Sigma.n_rows * log_2pi + dist + log_det);
+  }
+
+  arma::vec z = arma::solve(arma::trimatl(L), y);
+  double log_det = 2.0 * arma::sum(arma::log(L.diag()));
+  double dist = arma::dot(z, z);
+  double log_2pi = std::log(2.0 * 3.14159265358979);
+  return -0.5 * (Sigma.n_rows * log_2pi + dist + log_det);
+}
+
 bool heterbd(tree& x, xinfo& xi, dinfo& di, pinfo& pi, double *sigma,
              std::vector<size_t>& nv, std::vector<double>& pv, bool aug, rn& gen,
              double *r)
@@ -672,15 +690,13 @@ double hetergetmargprob_SPDEapprox(
   );
   arma::sp_mat Q_sp = Rcpp::as<arma::sp_mat>(Q);
   arma::sp_mat A_sp = di.A_unique;
-  arma::mat mydiag(Q_sp.n_rows , Q_sp.n_cols, fill::eye);
-  arma::mat mat_1_inv = arma::spsolve(Q_sp, mydiag, "lapack");
-
   arma::mat y_(di.nunique, di.nunique, fill::eye);
   for (int i = 0; i < di.nunique; i++) {
     y_(i,i) = y_(i,i)* sigma * sigma/di.dat_size[i];
   }
 
-  arma::mat spatcov = A_sp*mat_1_inv*A_sp.t();//calcMat_weighted(di, pi, sigma, sigma_m, kappa);
+  arma::mat solved_A = arma::spsolve(Q_sp, arma::mat(A_sp.t()), "lapack");
+  arma::mat spatcov = arma::mat(A_sp)*solved_A;//calcMat_weighted(di, pi, sigma, sigma_m, kappa);
   arma::mat covs = temp1 + y_ + spatcov;
   //cout << "determinant is " << arma::log_det_sympd(covs) << endl;
   double lh = dmvnorm_rcpp(yhat , covs);
@@ -735,7 +751,7 @@ double hetergetmargprob(
   //cout << formula1 << endl;
   Function form("as.formula");
   /*
-  Function inlaMesh2D = env["inla.mesh.2d"];
+  Function inlaMesh2D = env["fm_mesh_2d_inla"];
   Rcpp::NumericVector edge_arg = {0.1,0.3};
   Rcpp::NumericVector cutoff = {0.06};
 
@@ -1142,7 +1158,7 @@ double heterbd_drawsigma_margprob_exact(double* r, dinfo& di, pinfo& pi, double 
   arma::mat spatcov = calcMat_weighted(di, pi, sigma, sigma_m, kappa); //calcCovMat(di, pi, sigma);
   arma::mat covs = spatcov;
   //cout << "determinant is " << arma::log_det_sympd(covs) << endl;
-  double mlik_exact = dmvnorm_rcpp(yhat , covs);
+  double mlik_exact = dmvnorm_rcpp_chol(yhat , covs);
   return mlik_exact;
 }
 
@@ -1180,10 +1196,11 @@ double heterbd_drawsigma_margprob_SPDEapprox(double* r, dinfo& di, pinfo& pi, do
     mydiag2(i,i) = di.dat_size[i]/ sigma / sigma;
   }
   arma::sp_mat mat_1 = (A_sp.t()*mydiag2*A_sp + Q_sp);
-  arma::mat mydiag(mat_1.n_rows , mat_1.n_cols, fill::eye);
-  arma::mat mat_1_inv = arma::spsolve(mat_1, mydiag, "lapack");
-  arma::mat mat_2 = mydiag2*A_sp*mat_1_inv*A_sp.t()*mydiag2;
-  arma::mat mat_temp = mydiag2 - mat_2;
+  arma::mat rhs = arma::mat(A_sp.t()*mydiag2);
+  arma::mat solved = arma::spsolve(mat_1, rhs, "lapack");
+  arma::mat mat_2 = arma::mat(mydiag2*A_sp)*solved;
+  arma::mat mat_temp(mydiag2);
+  mat_temp -= mat_2;
   // determinant Sigma
   double det_Sigma = arma::log_det_sympd(mat_temp);
   // distance
@@ -1347,7 +1364,7 @@ double heterbd_drawsigma_margprob_test(double* r, dinfo& di, pinfo& pi, double s
 
 
 double heterbd_drawsigma(
-    dinfo& di, double* r, double sigma,double &kappa,double &sigma_m, pinfo& pi, double lambda, double nu, rn& gen, bool isexact
+    dinfo& di, double* r, double sigma,double &kappa,double &sigma_m, pinfo& pi, double lambda, double nu, rn& gen, bool isexact, double &mlik
 ) {
   // proposing
   // check if this is doing what we intended
@@ -1361,13 +1378,13 @@ double heterbd_drawsigma(
   double temp = rands*omi+(2.0)*std::log(sigma);
   double sigma_star = std::sqrt(std::exp(temp));
   //cout << "sigma, sigmam, kappa: " << sigma_star << " " << sigma_m << " " << kappa << endl;
-  double mlik1, mlik2;
+  double mlik1;
   if (isexact) {
     mlik1 = heterbd_drawsigma_margprob_exact(r, di, pi, sigma_star, sigma_m, kappa);
-    mlik2 = heterbd_drawsigma_margprob_exact(r, di, pi, sigma, sigma_m, kappa);
+    mlik = heterbd_drawsigma_margprob_exact(r, di, pi, sigma, sigma_m, kappa);
   } else {
     mlik1 = heterbd_drawsigma_margprob_SPDEapprox(r, di, pi, sigma_star, sigma_m, kappa);
-    mlik2 = heterbd_drawsigma_margprob_SPDEapprox(r, di, pi, sigma, sigma_m, kappa);
+    mlik = heterbd_drawsigma_margprob_SPDEapprox(r, di, pi, sigma, sigma_m, kappa);
   }
   //cout << "sigma, sigmam, kappa: " << sigma << " " << sigma_m << " " << kappa << endl;
   //double mlik2 = 0;//heterbd_drawsigma_margprob(r, di, pi, sigma, sigma_m, kappa);
@@ -1383,20 +1400,22 @@ double heterbd_drawsigma(
   //cout << sigma_star-sigma << " sigma " <<  mlik1- mlik2 << " mlik " << endl;
   double mh_ratio;
   if (isexact) {
-    mh_ratio = mlik1 - mlik2;// + (p1 - p2) + (std::log(sigma_star) - std::log(sigma))*(2.0);
+    mh_ratio = mlik1 - mlik;// + (p1 - p2) + (std::log(sigma_star) - std::log(sigma))*(2.0);
   } else {
-    mh_ratio = mlik1 - mlik2;// + (p1 - p2) + (std::log(sigma_star) - std::log(sigma))*(2.0);
+    mh_ratio = mlik1 - mlik;// + (p1 - p2) + (std::log(sigma_star) - std::log(sigma))*(2.0);
   }
   //double mh_ratio = std::min(0.0, mlik1 - mlik2  -(p1 - p2));
   //cout << mh_ratio << " " << sigma_star << " " << sigma << endl;
   //cout << "m1" << mlik1 << " m2 " << mlik2 << endl;
   //cout << "sig: INLA: " << mlik1 - mlik2 <<  " exact: " << mlik1_exact - mlik2_exact << " approx: " << mlik1_approx - mlik2_approx << endl;
   if (mh_ratio > 0) {
+    mlik = mlik1;
     return sigma_star;
    } else {
     double random_gen = arma::randu<double>();
     //cout << random_gen << endl;
     if (random_gen < std::exp(mh_ratio)) {
+      mlik = mlik1;
       return sigma_star;
     }
     return sigma;
@@ -1421,14 +1440,12 @@ void heterbd_drawspathyperpars(
   double sigma_mstar = std::exp(temp_sigma_m);
   double kappa_star = std::exp(temp_kappa);
   //cout << "sigma, sigmam, kappa: " << sigma << " " << sigma_mstar << " " << kappa_star << endl;
-  double mlik1, mlik2;
+  double mlik1;
   // double mlik1 = 0;//heterbd_drawsigma_margprob(r, di, pi, sigma, sigma_mstar, kappa_star);
   if (isexact) {
     mlik1 = heterbd_drawsigma_margprob_exact(r, di, pi, sigma, sigma_mstar, kappa_star);
-    mlik2 = heterbd_drawsigma_margprob_exact(r, di, pi, sigma, sigma_m, kappa);
   } else {
     mlik1 = heterbd_drawsigma_margprob_SPDEapprox(r, di, pi, sigma, sigma_mstar, kappa_star);
-    mlik2 = heterbd_drawsigma_margprob_SPDEapprox(r, di, pi, sigma, sigma_m, kappa);
   }
   //cout << "m1" << mlik1 << " m2 " << mlik2 << endl;
   //cout << "hyp: INLA: " << mlik1 - mlik2 <<  " exact: " << mlik1_exact - mlik2_exact << " approx: " << mlik1_approx - mlik2_approx << endl;
@@ -1439,15 +1456,17 @@ void heterbd_drawspathyperpars(
   double rho_star = 2.0*std::sqrt(2.0*pi.nu)/kappa_star;
   double pdiff = std::log(pi.alpha_1)*pi.rho_0*(1/rho_star - 1/rho) + std::log(pi.alpha_2)/pi.sigma_m0*(sigma_mstar - sigma_m) - (2.0)*(std::log(rho_star) - std::log(rho));
   bool flag_true = 1;
-  double mh_ratio = mlik1 - mlik2 + pdiff + (std::log(sigma_mstar) - std::log(sigma_m)) + (std::log(kappa_star) - std::log(kappa));
+  double mh_ratio = mlik1 - mlik + pdiff + (std::log(sigma_mstar) - std::log(sigma_m)) + (std::log(kappa_star) - std::log(kappa));
   if (mh_ratio > 0) {
     kappa = kappa_star;
     sigma_m = sigma_mstar;
+    mlik = mlik1;
   } else {
     double random_gen = arma::randu<double>();
     if (random_gen < std::exp(mh_ratio)) {
       kappa = kappa_star;
       sigma_m = sigma_mstar;
+      mlik = mlik1;
     }
   }
 }
@@ -1644,8 +1663,8 @@ void heterbd_trihyperpars(
   //Rcpp::NumericVector tempss2 = temps2["modulus"];
   //double tempsss1 = tempss1[0];
   //double tempsss2 = tempss2[0];
-  double mlik1 = -0.5*arma::log_det_sympd(sig) - 0.5*arma::sum(rvec.t()*sig.i()*rvec);
-  double mlik2 = -0.5*arma::log_det_sympd(sig_star) - 0.5*arma::sum(rvec.t()*sig_star.i()*rvec);
+  double mlik1 = dmvnorm_rcpp_chol(rvec, sig);
+  double mlik2 = dmvnorm_rcpp_chol(rvec, sig_star);
   double mh_ratio = mlik2 - mlik1 + jacob_spat + jacob_nonspat + pdiff + pdiff_nonspat;
   if (mh_ratio > 0) {
     kappa = kappa_star;
@@ -1679,19 +1698,5 @@ double dmvnorm_distance( arma::vec y, arma::mat Sigma )
 
 // I used code
 double dmvnorm_rcpp( arma::vec y, arma::mat Sigma ) {
-
-  int p = Sigma.n_rows;
-
-
-  // inverse Sigma
-  // cout << "sigma1" << endl;
-  arma::mat Sigma1 = arma::inv_sympd(Sigma);
-  // determinant Sigma
-  double det_Sigma = arma::log_det_sympd(Sigma);
-  // distance
-  double dist = dmvnorm_distance( y, Sigma1);
-  double pi1 = 3.14159265358979;
-  double l1 = - p * std::log(2*pi1) - dist - det_Sigma;
-  double ll = 0.5 * l1;
-  return ll;
+  return dmvnorm_rcpp_chol(y, Sigma);
 }
